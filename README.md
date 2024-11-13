@@ -2,7 +2,7 @@
 
 ## Description:
 
-Simple IDS that detects port scans, SYN floods, and ICMP floods. When you close the process it logs each detected suspicious activity in a different file named 'ids_log.txt'. There is also a FLask web dashboards which allows for real-time monitoring of detetced threats.
+Simple IDS that detects port scans, SYN floods, and ICMP floods. When you close the process it logs each detected suspicious activity in a different file named 'ids_log.txt'. There is also a Flask web dashboards which allows for real-time monitoring of detetced threats.
 
 ---------------------------------------------
 ## Installation:
