@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Intrusion Detection System Dashboard</title>
+    <script>
+        function fetchAlerts() {
+            fetch('/alerts')
+                .then(response => response.json())
+                .then(data => {
+                    let alertList = document.getElementById("alert-list");
+                    alertList.innerHTML = "";
+                    data.forEach(alert => {
+                        let listItem = document.createElement("li");
+                        let message = ${alert.timestamp} - ${alert.type} from ${alert.source_ip};
+                        if (alert.type === "Port Scan") {
+                            message +=  (${alert.count});
+                        }
+                        listItem.textContent = message;
+                        alertList.appendChild(listItem);
+                    });
+                })
+                .catch(error => console.error('Error fetching alerts:', error));
+        } 
+        setInterval(fetchAlerts, 5000);
+    </script>
+</head>
+<body>
+    <h1>Intrusion Detection System Dashboard</h1>
+    <h2>Alerts</h2>
+    <ul id="alert-list"></ul>
+</body>
+</html>
