@@ -1,35 +1,32 @@
 
 #!/usr/bin/env python3
 """
-Terminal Chaos Lab - Ubuntu Server 24.04
+Terminal Chaos Lab - Diagnostic Edition
+Ubuntu Server 24.04
 
 Features:
-- Fake system diagnostics
-- Simulated Linux errors and warnings
+- Fake system diagnostics and progress bars
+- Simulated errors and warnings
 - Matrix-style terminal output
-- Progress bars and simulated retries
 - Combined random effects
-- Optional persistent Ctrl+X mapping for current user
-- Automatic screen restoration
+- Ctrl+X exit shortcut
+- Ctrl+C emergency stop
+- Automatic terminal restoration
 - Maximum 15-second runtime
 
-All diagnostic results are simulated.
-No actual services or system settings are modified
-by the visual demonstration.
+All diagnostics are simulated.
 """
 
 import argparse
 import random
-import re
+import select
 import shutil
 import sys
+import termios
 import time
-from pathlib import Path
+import tty
 
 RESET = "\033[0m"
-
-CONFIG_START = "# BEGIN TERMINAL CHAOS LAB"
-CONFIG_END = "# END TERMINAL CHAOS LAB"
 
 MESSAGES = [
     "[SIMULATION] ERROR: Connection refused",
@@ -67,70 +64,6 @@ RESULTS = [
 ]
 
 
-def configure_interrupt_key():
-    """
-    Persist Ctrl+X as the interrupt key for
-    the current user's interactive Bash sessions.
-    """
-
-    bashrc = Path.home() / ".bashrc"
-
-    configuration = (
-        f"\n{CONFIG_START}\n"
-        "if [[ $- == *i* ]]; then\n"
-        "    stty intr '^X' 2>/dev/null\n"
-        "fi\n"
-        f"{CONFIG_END}\n"
-    )
-
-    existing = bashrc.read_text() if bashrc.exists() else ""
-
-    if CONFIG_START in existing:
-        print("[LAB] Keymap configuration already installed.")
-        return
-
-    with bashrc.open("a") as file:
-        file.write(configuration)
-
-    print(f"[LAB] Updated {bashrc}")
-    print("[LAB] New Bash sessions will use Ctrl+X.")
-    print("[LAB] Run 'source ~/.bashrc' to apply it now.")
-
-
-def remove_interrupt_configuration():
-    """Remove the configuration added by this script."""
-
-    bashrc = Path.home() / ".bashrc"
-
-    if not bashrc.exists():
-        print("[LAB] No Bash configuration found.")
-        return
-
-    existing = bashrc.read_text()
-
-    pattern = (
-        r"\n?"
-        + re.escape(CONFIG_START)
-        + r".*?"
-        + re.escape(CONFIG_END)
-        + r"\n?"
-    )
-
-    updated, count = re.subn(
-        pattern,
-        "\n",
-        existing,
-        flags=re.DOTALL,
-    )
-
-    if count:
-        bashrc.write_text(updated)
-        print("[LAB] Persistent keymap removed.")
-        print("[LAB] Restore Ctrl+C using: stty intr '^C'")
-    else:
-        print("[LAB] No installed keymap found.")
-
-
 def terminal_size():
     size = shutil.get_terminal_size((80, 24))
     return min(size.columns, 120), min(size.lines, 50)
@@ -141,21 +74,17 @@ def banner():
     print("                  TERMINAL CHAOS LAB")
     print("                  DIAGNOSTIC EDITION")
     print("=" * 55)
-    print("[LAB] All messages and diagnostic results are simulated.")
-    print("[LAB] Press Ctrl+C to stop.\n")
+    print("[LAB] All diagnostic results are simulated.")
+    print("[LAB] Press Ctrl+X to exit.")
+    print("[LAB] Ctrl+C remains available for emergencies.\n")
 
 
 def warnings():
-    """Display a simulated system warning."""
-
     print(random.choice(MESSAGES), flush=True)
 
 
 def matrix():
-    """Print a line of random characters."""
-
     width, _ = terminal_size()
-
     characters = "01abcdef"
 
     line = "".join(
@@ -166,48 +95,68 @@ def matrix():
     print(line, flush=True)
 
 
+def check_exit_key():
+    """
+    Check whether Ctrl+X has been pressed.
+    Requires terminal cbreak mode.
+    """
+    if select.select([sys.stdin], [], [], 0)[0]:
+        key = sys.stdin.read(1)
+        return key == "\x18"
+
+    return False
+
+
+def wait_or_exit(seconds, deadline):
+    """
+    Wait in short intervals so Ctrl+X can
+    interrupt even during progress bars.
+    """
+    end = min(time.monotonic() + seconds, deadline)
+
+    while time.monotonic() < end:
+        if check_exit_key():
+            return True
+
+        time.sleep(
+            min(0.025, max(0, end - time.monotonic()))
+        )
+
+    return check_exit_key()
+
+
 def fake_diagnostics(deadline):
-    """
-    Run one simulated diagnostic check with
-    a progress bar and simulated result.
-    """
+    """Perform one entirely simulated diagnostic check."""
 
     check = random.choice(CHECKS)
-
     print(f"\n[DIAGNOSTIC] {check}...")
 
     for progress in range(0, 101, 10):
         if time.monotonic() >= deadline:
             print()
-            return
+            return False
 
         filled = progress // 5
-
-        bar = (
-            "#" * filled
-            + "-" * (20 - filled)
-        )
+        bar = "#" * filled + "-" * (20 - filled)
 
         sys.stdout.write(
             f"\r[{bar}] {progress:3d}%"
         )
         sys.stdout.flush()
 
-        time.sleep(
-            min(
-                0.12,
-                max(0, deadline - time.monotonic())
-            )
-        )
+        if wait_or_exit(0.12, deadline):
+            print()
+            return True
 
     print()
     print("[SIMULATION] " + random.choice(RESULTS))
     print("[DIAGNOSTIC] Retrying verification...\n")
 
+    return False
+
 
 def restore_screen():
-    """Restore the original terminal display."""
-
+    """Restore original terminal display."""
     sys.stdout.write(RESET)
     sys.stdout.write("\033[?25h")
     sys.stdout.write("\033[?1049l")
@@ -217,8 +166,6 @@ def restore_screen():
 
 
 def run_demo(mode, seconds):
-    """Run effects in the current interactive terminal."""
-
     if not sys.stdin.isatty() or not sys.stdout.isatty():
         print(
             "An interactive terminal is required.",
@@ -229,22 +176,30 @@ def run_demo(mode, seconds):
     duration = max(1, min(seconds, 15))
     deadline = time.monotonic() + duration
 
+    fd = sys.stdin.fileno()
+    original_settings = termios.tcgetattr(fd)
     alternate_screen = False
 
     try:
-        # Preserve the original terminal screen.
+        # Enable reading individual keypresses.
+        # Ctrl+C remains an emergency interrupt.
+        tty.setcbreak(fd)
+
+        # Switch to an alternate terminal screen.
         sys.stdout.write("\033[?1049h")
         sys.stdout.flush()
-
         alternate_screen = True
 
         banner()
 
         if mode == "banner":
-            time.sleep(min(duration, 2))
+            wait_or_exit(min(duration, 2), deadline)
             return 0
 
         while time.monotonic() < deadline:
+            if check_exit_key():
+                break
+
             current_mode = mode
 
             if mode == "combined":
@@ -261,19 +216,25 @@ def run_demo(mode, seconds):
                 matrix()
 
             elif current_mode == "diagnostics":
-                fake_diagnostics(deadline)
+                if fake_diagnostics(deadline):
+                    break
 
-            remaining = deadline - time.monotonic()
-
-            if remaining > 0:
-                time.sleep(min(0.4, remaining))
+            if wait_or_exit(0.4, deadline):
+                break
 
     except KeyboardInterrupt:
         pass
 
     finally:
-        if alternate_screen:
-            restore_screen()
+        try:
+            termios.tcsetattr(
+                fd,
+                termios.TCSANOW,
+                original_settings,
+            )
+        finally:
+            if alternate_screen:
+                restore_screen()
 
     return 0
 
@@ -302,29 +263,7 @@ def main():
         help="Duration in seconds (maximum 15)",
     )
 
-    group = parser.add_mutually_exclusive_group()
-
-    group.add_argument(
-        "--install-keymap",
-        action="store_true",
-        help="Persist Ctrl+X for the current lab user",
-    )
-
-    group.add_argument(
-        "--remove-keymap",
-        action="store_true",
-        help="Remove the persistent Ctrl+X mapping",
-    )
-
     args = parser.parse_args()
-
-    if args.install_keymap:
-        configure_interrupt_key()
-        return 0
-
-    if args.remove_keymap:
-        remove_interrupt_configuration()
-        return 0
 
     return run_demo(args.mode, args.seconds)
 
