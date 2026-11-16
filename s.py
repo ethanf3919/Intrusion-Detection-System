@@ -6,13 +6,13 @@ Terminal Chaos Lab - Ubuntu Server 24.04
 Features:
 - Matrix-style terminal output
 - Colored simulated warnings
-- Full-screen color effects
 - Combined random effects
-- Ctrl+X interrupt mapping
+- Temporary Ctrl+X interrupt mapping
 - Optional persistent mapping for current user
 - Automatic screen restoration
 - Maximum 15-second runtime
 
+No flashing backgrounds or real system diagnostics.
 Use only in an authorized test terminal.
 """
 
@@ -28,13 +28,14 @@ from pathlib import Path
 RESET = "\033[0m"
 CLEAR = "\033[2J\033[H"
 
+# Foreground text colors only.
 COLORS = [
-    "\033[47;30m",       # Light gray background, black text
-    "\033[107;30m",      # White background, black text
-    "\033[48;5;153;30m", # Pastel blue
-    "\033[48;5;151;30m", # Pastel green
-    "\033[48;5;225;30m", # Pastel pink
-    "\033[48;5;230;30m", # Pale yellow
+    "\033[37m",  # Light gray
+    "\033[97m",  # White
+    "\033[36m",  # Cyan
+    "\033[32m",  # Green
+    "\033[35m",  # Purple
+    "\033[33m",  # Yellow
 ]
 
 MESSAGES = [
@@ -51,7 +52,10 @@ CONFIG_END = "# END TERMINAL CHAOS LAB"
 
 
 def configure_interrupt_key():
-    """Persist Ctrl+X for the current user's Bash sessions."""
+    """
+    Persist Ctrl+X as the interrupt key for
+    the current user's interactive Bash sessions.
+    """
 
     bashrc = Path.home() / ".bashrc"
 
@@ -78,7 +82,10 @@ def configure_interrupt_key():
 
 
 def remove_interrupt_configuration():
-    """Remove the configuration installed by this script."""
+    """
+    Remove the persistent interrupt configuration
+    installed by this script.
+    """
 
     bashrc = Path.home() / ".bashrc"
 
@@ -112,21 +119,32 @@ def remove_interrupt_configuration():
 
 
 def terminal_size():
+    """Return terminal dimensions."""
+
     size = shutil.get_terminal_size((80, 24))
-    return min(size.columns, 120), min(size.lines, 50)
+
+    return (
+        min(size.columns, 120),
+        min(size.lines, 50),
+    )
 
 
 def banner():
+    """Display the simulation banner."""
+
     print("\033[1;35m")
     print("=" * 45)
     print("          TERMINAL CHAOS LAB")
     print("=" * 45)
     print(RESET)
+
     print("Press Ctrl+X to stop the demonstration.")
     print()
 
 
 def warnings():
+    """Display a randomly colored simulated warning."""
+
     color = random.choice(COLORS)
     message = random.choice(MESSAGES)
 
@@ -134,6 +152,8 @@ def warnings():
 
 
 def matrix():
+    """Display Matrix-style random characters."""
+
     width, _ = terminal_size()
 
     chars = "01abcdef"
@@ -146,27 +166,11 @@ def matrix():
     print("\033[32m" + line + RESET, flush=True)
 
 
-def color_screen():
-    """Display a random full-screen background color."""
-
-    width, height = terminal_size()
-    color = random.choice(BACKGROUNDS)
-
-    sys.stdout.write(CLEAR)
-    sys.stdout.write(color)
-
-    for row in range(height):
-        sys.stdout.write(" " * max(1, width - 1))
-
-        if row < height - 1:
-            sys.stdout.write("\n")
-
-    sys.stdout.write(RESET)
-    sys.stdout.flush()
-
-
 def remap_interrupt():
-    """Temporarily map Ctrl+X to SIGINT."""
+    """
+    Temporarily map Ctrl+X to SIGINT
+    for the current terminal.
+    """
 
     fd = sys.stdin.fileno()
 
@@ -186,7 +190,7 @@ def remap_interrupt():
 
 
 def restore_interrupt(original):
-    """Restore original terminal settings."""
+    """Restore original terminal interrupt settings."""
 
     if original is not None:
         termios.tcsetattr(
@@ -197,7 +201,7 @@ def restore_interrupt(original):
 
 
 def restore_screen():
-    """Reset colors and restore the previous display."""
+    """Restore the previous terminal display."""
 
     sys.stdout.write(RESET)
     sys.stdout.write("\033[?25h")
@@ -209,7 +213,7 @@ def restore_screen():
 
 
 def run_demo(mode, seconds):
-    """Run visual effects in the current terminal."""
+    """Run the visual demonstration."""
 
     if not sys.stdin.isatty() or not sys.stdout.isatty():
         print(
@@ -225,9 +229,10 @@ def run_demo(mode, seconds):
     alternate_screen = False
 
     try:
+        # Temporarily change the interrupt key.
         original_terminal = remap_interrupt()
 
-        # Switch to an alternate screen.
+        # Switch to an alternate terminal screen.
         sys.stdout.write("\033[?1049h")
         sys.stdout.flush()
 
@@ -247,7 +252,6 @@ def run_demo(mode, seconds):
                 current_mode = random.choice([
                     "warnings",
                     "matrix",
-                    "flash",
                 ])
 
             if current_mode == "warnings":
@@ -256,19 +260,21 @@ def run_demo(mode, seconds):
             elif current_mode == "matrix":
                 matrix()
 
-            elif current_mode == "flash":
-                color_screen()
-
             time.sleep(
-                min(0.6, max(0, end_time - time.monotonic()))
+                min(
+                    0.6,
+                    max(0, end_time - time.monotonic())
+                )
             )
 
     except KeyboardInterrupt:
         pass
 
     finally:
+        # Restore original interrupt settings.
         try:
             restore_interrupt(original_terminal)
+
         finally:
             if alternate_screen:
                 restore_screen()
@@ -287,7 +293,6 @@ def main():
             "banner",
             "warnings",
             "matrix",
-            "flash",
             "combined",
         ],
         default="combined",
@@ -297,6 +302,7 @@ def main():
         "--seconds",
         type=int,
         default=10,
+        help="Duration in seconds (maximum 15)",
     )
 
     group = parser.add_mutually_exclusive_group()
