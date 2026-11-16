@@ -1,0 +1,34 @@
+---
+- name: Deploy read-only Linux Executable Hunter scanner
+  hosts: all
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Install Python 3 on Debian-family hosts
+      ansible.builtin.apt:
+        name: python3
+        state: present
+        update_cache: false
+      when: ansible_os_family == 'Debian'
+
+    - name: Install Python 3 on RedHat-family hosts
+      ansible.builtin.package:
+        name: python3
+        state: present
+      when: ansible_os_family == 'RedHat'
+
+    - name: Create installation directory
+      ansible.builtin.file:
+        path: /opt/linux-executable-hunter
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Install scanner
+      ansible.builtin.copy:
+        src: ../scanner.py
+        dest: /opt/linux-executable-hunter/scanner.py
+        owner: root
+        group: root
+        mode: '0755'

@@ -1,0 +1,10 @@
+{
+  "hosts": {
+    "linux-host-5": {
+      "address": "192.0.2.15",
+      "user": "grayteam",
+      "port": 22,
+      "scanner_path": "/opt/linux-executable-hunter/scanner.py"
+    }
+  }
+}
