@@ -4,16 +4,18 @@
 Terminal Chaos Lab - Ubuntu Server 24.04
 
 Features:
+- Fake system diagnostics
+- Simulated Linux errors and warnings
 - Matrix-style terminal output
-- Colored simulated warnings
-- Full-screen color effects
+- Progress bars and simulated retries
 - Combined random effects
-- Ctrl+X interrupt mapping
-- Optional persistent mapping for current user
+- Optional persistent Ctrl+X mapping for current user
 - Automatic screen restoration
 - Maximum 15-second runtime
 
-Use only in an authorized test terminal.
+All diagnostic results are simulated.
+No actual services or system settings are modified
+by the visual demonstration.
 """
 
 import argparse
@@ -21,46 +23,55 @@ import random
 import re
 import shutil
 import sys
-import termios
 import time
 from pathlib import Path
 
 RESET = "\033[0m"
-CLEAR = "\033[2J\033[H"
-
-COLORS = [
-    "\033[47;30m",       # Light gray background, black text
-    "\033[107;30m",      # White background, black text
-    "\033[48;5;153;30m", # Pastel blue
-    "\033[48;5;151;30m", # Pastel green
-    "\033[48;5;225;30m", # Pastel pink
-    "\033[48;5;230;30m", # Pale yellow
-]
-
-BACKGROUNDS = [
-    "\033[48;5;153m",    # Pastel blue
-    "\033[48;5;151m",    # Pastel green
-    "\033[48;5;225m",    # Pastel pink
-    "\033[48;5;230m",    # Pale yellow
-    "\033[48;5;189m",    # Light lavender
-    "\033[48;5;255m",    # Light gray
-]
-
-MESSAGES = [
-    "[LAB] Simulated service warning",
-    "[LAB] Example: connection delayed",
-    "[LAB] Simulated authentication error",
-    "[LAB] Example: resource usage warning",
-    "[LAB] Terminal Chaos demonstration",
-    "[LAB] No system configuration changed",
-]
 
 CONFIG_START = "# BEGIN TERMINAL CHAOS LAB"
 CONFIG_END = "# END TERMINAL CHAOS LAB"
 
+MESSAGES = [
+    "[SIMULATION] ERROR: Connection refused",
+    "[SIMULATION] WARNING: Unexpected process activity",
+    "[SIMULATION] ERROR: Authentication failed",
+    "[SIMULATION] WARNING: Service response delayed",
+    "[SIMULATION] ERROR: Network timeout",
+    "[SIMULATION] WARNING: Resource usage elevated",
+    "[SIMULATION] ERROR: Dependency verification failed",
+    "[SIMULATION] WARNING: Additional verification required",
+]
+
+CHECKS = [
+    "Checking system integrity",
+    "Analyzing network interfaces",
+    "Checking SSH connectivity",
+    "Inspecting running processes",
+    "Verifying filesystem health",
+    "Checking service dependencies",
+    "Analyzing system logs",
+    "Testing DNS resolution",
+    "Checking memory allocation",
+    "Verifying network connections",
+    "Checking Postfix service status",
+    "Inspecting firewall configuration",
+]
+
+RESULTS = [
+    "WARNING: Response delayed",
+    "ERROR: Simulated timeout",
+    "WARNING: Unexpected response",
+    "ERROR: Simulated connection failure",
+    "WARNING: Retry required",
+    "NOTICE: Additional verification needed",
+]
+
 
 def configure_interrupt_key():
-    """Persist Ctrl+X for the current user's Bash sessions."""
+    """
+    Persist Ctrl+X as the interrupt key for
+    the current user's interactive Bash sessions.
+    """
 
     bashrc = Path.home() / ".bashrc"
 
@@ -75,19 +86,19 @@ def configure_interrupt_key():
     existing = bashrc.read_text() if bashrc.exists() else ""
 
     if CONFIG_START in existing:
-        print("[LAB] Configuration already installed.")
+        print("[LAB] Keymap configuration already installed.")
         return
 
     with bashrc.open("a") as file:
         file.write(configuration)
 
     print(f"[LAB] Updated {bashrc}")
-    print("[LAB] New interactive Bash sessions will use Ctrl+X.")
+    print("[LAB] New Bash sessions will use Ctrl+X.")
     print("[LAB] Run 'source ~/.bashrc' to apply it now.")
 
 
 def remove_interrupt_configuration():
-    """Remove the configuration installed by this script."""
+    """Remove the configuration added by this script."""
 
     bashrc = Path.home() / ".bashrc"
 
@@ -114,10 +125,10 @@ def remove_interrupt_configuration():
 
     if count:
         bashrc.write_text(updated)
-        print("[LAB] Persistent interrupt mapping removed.")
-        print("[LAB] Run: stty intr '^C'")
+        print("[LAB] Persistent keymap removed.")
+        print("[LAB] Restore Ctrl+C using: stty intr '^C'")
     else:
-        print("[LAB] No installed mapping found.")
+        print("[LAB] No installed keymap found.")
 
 
 def terminal_size():
@@ -126,99 +137,87 @@ def terminal_size():
 
 
 def banner():
-    print("\033[1;35m")
-    print("=" * 45)
-    print("          TERMINAL CHAOS LAB")
-    print("=" * 45)
-    print(RESET)
-    print("Press Ctrl+X to stop the demonstration.")
-    print()
+    print("=" * 55)
+    print("                  TERMINAL CHAOS LAB")
+    print("                  DIAGNOSTIC EDITION")
+    print("=" * 55)
+    print("[LAB] All messages and diagnostic results are simulated.")
+    print("[LAB] Press Ctrl+C to stop.\n")
 
 
 def warnings():
-    color = random.choice(COLORS)
-    message = random.choice(MESSAGES)
+    """Display a simulated system warning."""
 
-    print(color + message + RESET, flush=True)
+    print(random.choice(MESSAGES), flush=True)
 
 
 def matrix():
+    """Print a line of random characters."""
+
     width, _ = terminal_size()
 
-    chars = "01abcdef"
+    characters = "01abcdef"
 
     line = "".join(
-        random.choice(chars)
+        random.choice(characters)
         for _ in range(max(1, width - 2))
     )
 
-    print("\033[32m" + line + RESET, flush=True)
+    print(line, flush=True)
 
 
-def color_screen():
-    """Display a random full-screen background color."""
+def fake_diagnostics(deadline):
+    """
+    Run one simulated diagnostic check with
+    a progress bar and simulated result.
+    """
 
-    width, height = terminal_size()
-    color = random.choice(BACKGROUNDS)
+    check = random.choice(CHECKS)
 
-    sys.stdout.write(CLEAR)
-    sys.stdout.write(color)
+    print(f"\n[DIAGNOSTIC] {check}...")
 
-    for row in range(height):
-        sys.stdout.write(" " * max(1, width - 1))
+    for progress in range(0, 101, 10):
+        if time.monotonic() >= deadline:
+            print()
+            return
 
-        if row < height - 1:
-            sys.stdout.write("\n")
+        filled = progress // 5
 
-    sys.stdout.write(RESET)
-    sys.stdout.flush()
-
-
-def remap_interrupt():
-    """Temporarily map Ctrl+X to SIGINT."""
-
-    fd = sys.stdin.fileno()
-
-    original = termios.tcgetattr(fd)
-    modified = termios.tcgetattr(fd)
-
-    # ASCII 24 represents Ctrl+X.
-    modified[6][termios.VINTR] = 24
-
-    termios.tcsetattr(
-        fd,
-        termios.TCSANOW,
-        modified,
-    )
-
-    return original
-
-
-def restore_interrupt(original):
-    """Restore original terminal settings."""
-
-    if original is not None:
-        termios.tcsetattr(
-            sys.stdin.fileno(),
-            termios.TCSANOW,
-            original,
+        bar = (
+            "#" * filled
+            + "-" * (20 - filled)
         )
+
+        sys.stdout.write(
+            f"\r[{bar}] {progress:3d}%"
+        )
+        sys.stdout.flush()
+
+        time.sleep(
+            min(
+                0.12,
+                max(0, deadline - time.monotonic())
+            )
+        )
+
+    print()
+    print("[SIMULATION] " + random.choice(RESULTS))
+    print("[DIAGNOSTIC] Retrying verification...\n")
 
 
 def restore_screen():
-    """Reset colors and restore the previous display."""
+    """Restore the original terminal display."""
 
     sys.stdout.write(RESET)
     sys.stdout.write("\033[?25h")
-    sys.stdout.write(CLEAR)
     sys.stdout.write("\033[?1049l")
     sys.stdout.flush()
 
-    print("[LAB] Demonstration ended. Screen restored.")
+    print("[LAB] Demonstration ended. Terminal restored.")
 
 
 def run_demo(mode, seconds):
-    """Run visual effects in the current terminal."""
+    """Run effects in the current interactive terminal."""
 
     if not sys.stdin.isatty() or not sys.stdout.isatty():
         print(
@@ -228,15 +227,12 @@ def run_demo(mode, seconds):
         return 2
 
     duration = max(1, min(seconds, 15))
-    end_time = time.monotonic() + duration
+    deadline = time.monotonic() + duration
 
-    original_terminal = None
     alternate_screen = False
 
     try:
-        original_terminal = remap_interrupt()
-
-        # Switch to an alternate screen.
+        # Preserve the original terminal screen.
         sys.stdout.write("\033[?1049h")
         sys.stdout.flush()
 
@@ -248,15 +244,14 @@ def run_demo(mode, seconds):
             time.sleep(min(duration, 2))
             return 0
 
-        while time.monotonic() < end_time:
-
+        while time.monotonic() < deadline:
             current_mode = mode
 
             if mode == "combined":
                 current_mode = random.choice([
                     "warnings",
                     "matrix",
-                    "flash",
+                    "diagnostics",
                 ])
 
             if current_mode == "warnings":
@@ -265,29 +260,27 @@ def run_demo(mode, seconds):
             elif current_mode == "matrix":
                 matrix()
 
-            elif current_mode == "flash":
-                color_screen()
+            elif current_mode == "diagnostics":
+                fake_diagnostics(deadline)
 
-            time.sleep(
-                min(0.6, max(0, end_time - time.monotonic()))
-            )
+            remaining = deadline - time.monotonic()
+
+            if remaining > 0:
+                time.sleep(min(0.4, remaining))
 
     except KeyboardInterrupt:
         pass
 
     finally:
-        try:
-            restore_interrupt(original_terminal)
-        finally:
-            if alternate_screen:
-                restore_screen()
+        if alternate_screen:
+            restore_screen()
 
     return 0
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Terminal Chaos Lab"
+        description="Terminal Chaos Lab - Diagnostic Edition"
     )
 
     parser.add_argument(
@@ -296,7 +289,7 @@ def main():
             "banner",
             "warnings",
             "matrix",
-            "flash",
+            "diagnostics",
             "combined",
         ],
         default="combined",
@@ -306,6 +299,7 @@ def main():
         "--seconds",
         type=int,
         default=10,
+        help="Duration in seconds (maximum 15)",
     )
 
     group = parser.add_mutually_exclusive_group()
@@ -319,7 +313,7 @@ def main():
     group.add_argument(
         "--remove-keymap",
         action="store_true",
-        help="Remove the persistent mapping",
+        help="Remove the persistent Ctrl+X mapping",
     )
 
     args = parser.parse_args()
