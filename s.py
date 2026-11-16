@@ -8,18 +8,19 @@ Features:
 - Colored simulated warnings
 - Combined random effects
 - Temporary Ctrl+X interrupt mapping
-- Optional persistent mapping for current user
+- Optional persistent mapping for current lab user
 - Automatic screen restoration
-- Maximum 15-second runtime
+- Maximum 15-second demonstration
+- Broadcast simulated warnings using wall
 
 No flashing backgrounds or real system diagnostics.
-Use only in an authorized test terminal.
 """
 
 import argparse
 import random
 import re
 import shutil
+import subprocess
 import sys
 import termios
 import time
@@ -30,12 +31,12 @@ CLEAR = "\033[2J\033[H"
 
 # Foreground text colors only.
 COLORS = [
-    "\033[37m",  # Light gray
-    "\033[97m",  # White
-    "\033[36m",  # Cyan
-    "\033[32m",  # Green
-    "\033[35m",  # Purple
-    "\033[33m",  # Yellow
+    "\033[37m",
+    "\033[97m",
+    "\033[36m",
+    "\033[32m",
+    "\033[35m",
+    "\033[33m",
 ]
 
 MESSAGES = [
@@ -52,10 +53,7 @@ CONFIG_END = "# END TERMINAL CHAOS LAB"
 
 
 def configure_interrupt_key():
-    """
-    Persist Ctrl+X as the interrupt key for
-    the current user's interactive Bash sessions.
-    """
+    """Persist Ctrl+X for the current lab user's Bash sessions."""
 
     bashrc = Path.home() / ".bashrc"
 
@@ -82,10 +80,7 @@ def configure_interrupt_key():
 
 
 def remove_interrupt_configuration():
-    """
-    Remove the persistent interrupt configuration
-    installed by this script.
-    """
+    """Remove the persistent keymap installed by this script."""
 
     bashrc = Path.home() / ".bashrc"
 
@@ -112,10 +107,10 @@ def remove_interrupt_configuration():
 
     if count:
         bashrc.write_text(updated)
-        print("[LAB] Persistent interrupt mapping removed.")
-        print("[LAB] Run: stty intr '^C'")
+        print("[LAB] Persistent keymap removed.")
+        print("[LAB] Restore Ctrl+C using: stty intr '^C'")
     else:
-        print("[LAB] No installed mapping found.")
+        print("[LAB] No installed keymap found.")
 
 
 def terminal_size():
@@ -133,12 +128,12 @@ def banner():
     """Display the simulation banner."""
 
     print("\033[1;35m")
-    print("=" * 45)
-    print("          TERMINAL CHAOS LAB")
-    print("=" * 45)
+    print("=" * 50)
+    print("             TERMINAL CHAOS LAB")
+    print("=" * 50)
     print(RESET)
 
-    print("Press Ctrl+X to stop the demonstration.")
+    print("[LAB] Press Ctrl+X to stop the demonstration.")
     print()
 
 
@@ -155,7 +150,6 @@ def matrix():
     """Display Matrix-style random characters."""
 
     width, _ = terminal_size()
-
     chars = "01abcdef"
 
     line = "".join(
@@ -167,17 +161,14 @@ def matrix():
 
 
 def remap_interrupt():
-    """
-    Temporarily map Ctrl+X to SIGINT
-    for the current terminal.
-    """
+    """Temporarily map Ctrl+X to SIGINT."""
 
     fd = sys.stdin.fileno()
 
     original = termios.tcgetattr(fd)
     modified = termios.tcgetattr(fd)
 
-    # ASCII 24 represents Ctrl+X.
+    # Ctrl+X is ASCII 24.
     modified[6][termios.VINTR] = 24
 
     termios.tcsetattr(
@@ -190,7 +181,7 @@ def remap_interrupt():
 
 
 def restore_interrupt(original):
-    """Restore original terminal interrupt settings."""
+    """Restore original terminal settings."""
 
     if original is not None:
         termios.tcsetattr(
@@ -212,8 +203,62 @@ def restore_screen():
     print("[LAB] Demonstration ended. Screen restored.")
 
 
+def broadcast_diagnostics():
+    """
+    Send one simulated diagnostic notification
+    to terminals accepting wall broadcasts.
+
+    Does not execute code in receiving terminals.
+    """
+
+    message = (
+        "TERMINAL CHAOS LAB - SIMULATION\n"
+        "========================================\n"
+        "Simulated system diagnostic notification.\n"
+        "Example warning: service response delayed.\n"
+        "Example warning: connection retry required.\n"
+        "\n"
+        "These warnings are simulated.\n"
+        "No actual system errors have been detected.\n"
+        "No services or files have been modified.\n"
+        "========================================\n"
+    )
+
+    try:
+        subprocess.run(
+            ["wall"],
+            input=message,
+            text=True,
+            check=True,
+            timeout=5,
+        )
+
+        print("[LAB] Broadcast submitted successfully.")
+        return 0
+
+    except FileNotFoundError:
+        print(
+            "[LAB] wall command not found.",
+            file=sys.stderr,
+        )
+
+    except subprocess.TimeoutExpired:
+        print(
+            "[LAB] Broadcast timed out.",
+            file=sys.stderr,
+        )
+
+    except subprocess.CalledProcessError as error:
+        print(
+            f"[LAB] Broadcast failed: {error}",
+            file=sys.stderr,
+        )
+
+    return 1
+
+
 def run_demo(mode, seconds):
-    """Run the visual demonstration."""
+    """Run visual effects in the current terminal."""
 
     if not sys.stdin.isatty() or not sys.stdout.isatty():
         print(
@@ -229,13 +274,11 @@ def run_demo(mode, seconds):
     alternate_screen = False
 
     try:
-        # Temporarily change the interrupt key.
         original_terminal = remap_interrupt()
 
-        # Switch to an alternate terminal screen.
+        # Preserve the original terminal screen.
         sys.stdout.write("\033[?1049h")
         sys.stdout.flush()
-
         alternate_screen = True
 
         banner()
@@ -263,7 +306,7 @@ def run_demo(mode, seconds):
             time.sleep(
                 min(
                     0.6,
-                    max(0, end_time - time.monotonic())
+                    max(0, end_time - time.monotonic()),
                 )
             )
 
@@ -271,10 +314,8 @@ def run_demo(mode, seconds):
         pass
 
     finally:
-        # Restore original interrupt settings.
         try:
             restore_interrupt(original_terminal)
-
         finally:
             if alternate_screen:
                 restore_screen()
@@ -294,6 +335,7 @@ def main():
             "warnings",
             "matrix",
             "combined",
+            "broadcast",
         ],
         default="combined",
     )
@@ -310,13 +352,13 @@ def main():
     group.add_argument(
         "--install-keymap",
         action="store_true",
-        help="Persist Ctrl+X for the current lab user",
+        help="Persist Ctrl+X for current lab user",
     )
 
     group.add_argument(
         "--remove-keymap",
         action="store_true",
-        help="Remove the persistent mapping",
+        help="Remove persistent Ctrl+X mapping",
     )
 
     args = parser.parse_args()
@@ -328,6 +370,9 @@ def main():
     if args.remove_keymap:
         remove_interrupt_configuration()
         return 0
+
+    if args.mode == "broadcast":
+        return broadcast_diagnostics()
 
     return run_demo(args.mode, args.seconds)
 
